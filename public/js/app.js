@@ -9,6 +9,8 @@ const App = {
       { path: '/hq/dashboard', icon: '📊', name: '品牌看板' },
       { path: '/hq/stores', icon: '🏬', name: '门店管理' },
       { path: '/hq/services', icon: '💆', name: '项目与定价' },
+      { path: '/hq/recipes', icon: '🧪', name: '项目耗材配方' },
+      { path: '/hq/materials', icon: '📦', name: '耗材档案与成本' },
       { path: '/hq/membership', icon: '👑', name: '会员体系' },
       { path: '/hq/commission', icon: '💰', name: '技师提成标准' },
     ]},
@@ -19,11 +21,19 @@ const App = {
       { path: '/hq/handovers', icon: '📋', name: '交班记录' },
       { path: '/hq/recharges', icon: '💳', name: '充值流水' },
     ]},
+    { role: 'hq', group: '库存核算', items: [
+      { path: '/hq/inventory-analysis', icon: '📉', name: '成本与毛利分析' },
+    ]},
     { role: 'store', group: '门店运营', items: [
       { path: '/store/dashboard', icon: '🏠', name: '门店看板' },
       { path: '/store/orders', icon: '🧾', name: '上钟开单' },
       { path: '/store/handover', icon: '📝', name: '交班结算' },
       { path: '/store/performance', icon: '💰', name: '技师业绩提成' },
+    ]},
+    { role: 'store', group: '库存管理', items: [
+      { path: '/store/inventory', icon: '📦', name: '耗材库存' },
+      { path: '/store/stock-movements', icon: '🔀', name: '库存流水' },
+      { path: '/store/transfers', icon: '🚚', name: '跨店调拨' },
     ]},
     { role: 'store', group: '人员与会员', items: [
       { path: '/store/technicians', icon: '🧑‍🔧', name: '技师管理' },
@@ -34,11 +44,14 @@ const App = {
 
   titles: {
     '/hq/dashboard': '品牌经营看板', '/hq/stores': '门店管理', '/hq/services': '项目与统一定价',
+    '/hq/recipes': '项目耗材配方（标准耗用）', '/hq/materials': '耗材档案与采购成本',
     '/hq/membership': '会员体系', '/hq/commission': '技师提成标准', '/hq/technicians': '技师档案',
     '/hq/transfers': '跨店调动记录', '/hq/orders': '全部门店账单', '/hq/handovers': '交班记录', '/hq/recharges': '会员充值流水',
+    '/hq/inventory-analysis': '耗材成本 · 账实差异 · 损耗率 · 项目毛利',
     '/store/dashboard': '门店看板', '/store/orders': '上钟开单', '/store/handover': '交班结算',
     '/store/performance': '技师业绩提成', '/store/technicians': '技师管理', '/store/members': '会员管理',
     '/store/handovers': '历史交班记录',
+    '/store/inventory': '耗材库存（采购/盘点/报损）', '/store/stock-movements': '库存流水', '/store/transfers': '跨店调拨',
   },
 
   async start() {

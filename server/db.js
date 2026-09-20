@@ -74,6 +74,53 @@ const SHIFT_DEFS = [
   { code: 'night', name: '晚班', start: '18:00', end: '02:00' },
 ];
 
+/* ---------------- 耗材档案 ---------------- */
+const MATERIALS = [
+  { id: 'MA001', name: '一次性泡脚袋', spec: '加厚 65×55cm', unit: '个', category: '一次性耗材', defaultCost: 0.35 },
+  { id: 'MA002', name: '一次性毛巾', spec: '纯棉 30×60cm', unit: '条', category: '一次性耗材', defaultCost: 0.60 },
+  { id: 'MA003', name: '一次性床单', spec: '无纺布 80×180cm', unit: '张', category: '一次性耗材', defaultCost: 1.20 },
+  { id: 'MA004', name: '艾草泡脚包', spec: '复方艾草 30g/包', unit: '包', category: '药浴耗材', defaultCost: 2.50 },
+  { id: 'MA005', name: '生姜泡脚包', spec: '生姜红花 30g/包', unit: '包', category: '药浴耗材', defaultCost: 2.80 },
+  { id: 'MA006', name: '基础按摩油', spec: '润肤基础油 1000ml', unit: 'ml', category: '精油药油', defaultCost: 0.12 },
+  { id: 'MA007', name: '艾草精油', spec: '蕲艾精油 100ml', unit: 'ml', category: '精油药油', defaultCost: 0.25 },
+  { id: 'MA008', name: 'SPA 复方精油', spec: '植物舒缓复方 100ml', unit: 'ml', category: '精油药油', defaultCost: 0.90 },
+  { id: 'MA009', name: '热石能量精油', spec: '火山热石专用 100ml', unit: 'ml', category: '精油药油', defaultCost: 0.45 },
+  { id: 'MA010', name: '刮痧活血油', spec: '红花刮痧油 100ml', unit: 'ml', category: '精油药油', defaultCost: 0.15 },
+  { id: 'MA011', name: '消毒酒精', spec: '75% 医用 500ml', unit: 'ml', category: '消毒用品', defaultCost: 0.05 },
+  { id: 'MA012', name: '一次性棉片', spec: '脱脂棉 6×6cm', unit: '片', category: '消毒用品', defaultCost: 0.10 },
+  { id: 'MA013', name: '一次性修脚刀片', spec: '不锈钢灭菌装', unit: '片', category: '工具耗材', defaultCost: 1.80 },
+  { id: 'MA014', name: '一次性采耳工具包', spec: '采耳棒+鹅毛棒套装', unit: '套', category: '工具耗材', defaultCost: 2.20 },
+  { id: 'MA015', name: '陈年艾条', spec: '五年陈 18×200mm', unit: '根', category: '调理耗材', defaultCost: 1.60 },
+  { id: 'MA016', name: '耳烛', spec: '香薰蜂蜡耳烛', unit: '对', category: '调理耗材', defaultCost: 3.50 },
+];
+
+/* 每个服务项目的标准耗用配方（开单时按此快照扣库） */
+const RECIPE_DEFS = [
+  { serviceId: 'V01', lines: [{ materialId: 'MA001', qty: 1 }, { materialId: 'MA002', qty: 1 }, { materialId: 'MA004', qty: 1 }, { materialId: 'MA006', qty: 10 }] },
+  { serviceId: 'V02', lines: [{ materialId: 'MA001', qty: 1 }, { materialId: 'MA002', qty: 1 }, { materialId: 'MA005', qty: 1 }, { materialId: 'MA006', qty: 15 }] },
+  { serviceId: 'V03', lines: [{ materialId: 'MA001', qty: 1 }, { materialId: 'MA002', qty: 1 }, { materialId: 'MA004', qty: 2 }, { materialId: 'MA011', qty: 20 }, { materialId: 'MA012', qty: 2 }] },
+  { serviceId: 'V04', lines: [{ materialId: 'MA003', qty: 1 }, { materialId: 'MA002', qty: 1 }, { materialId: 'MA006', qty: 20 }] },
+  { serviceId: 'V05', lines: [{ materialId: 'MA003', qty: 1 }, { materialId: 'MA002', qty: 2 }, { materialId: 'MA006', qty: 15 }] },
+  { serviceId: 'V06', lines: [{ materialId: 'MA002', qty: 1 }, { materialId: 'MA006', qty: 10 }, { materialId: 'MA007', qty: 5 }] },
+  { serviceId: 'V07', lines: [{ materialId: 'MA003', qty: 1 }, { materialId: 'MA002', qty: 2 }, { materialId: 'MA008', qty: 30 }] },
+  { serviceId: 'V08', lines: [{ materialId: 'MA003', qty: 1 }, { materialId: 'MA002', qty: 2 }, { materialId: 'MA009', qty: 25 }, { materialId: 'MA008', qty: 10 }] },
+  { serviceId: 'V09', lines: [{ materialId: 'MA003', qty: 1 }, { materialId: 'MA002', qty: 1 }, { materialId: 'MA015', qty: 2 }] },
+  { serviceId: 'V10', lines: [{ materialId: 'MA002', qty: 1 }, { materialId: 'MA012', qty: 2 }, { materialId: 'MA010', qty: 15 }] },
+  { serviceId: 'V11', lines: [{ materialId: 'MA002', qty: 1 }, { materialId: 'MA014', qty: 1 }] },
+  { serviceId: 'V12', lines: [{ materialId: 'MA002', qty: 1 }, { materialId: 'MA013', qty: 1 }] },
+];
+
+function materialById(id) { return MATERIALS.find(m => m.id === id); }
+/* 开单时的配方快照：固化耗材名称、单位、用量、当时采购成本 */
+function recipeSnapshotFor(serviceId) {
+  const def = RECIPE_DEFS.find(r => r.serviceId === serviceId);
+  if (!def) return [];
+  return def.lines.map(l => {
+    const m = materialById(l.materialId);
+    return { materialId: m.id, materialName: m.name, unit: m.unit, qty: l.qty, unitCost: m.defaultCost };
+  });
+}
+
 const SURNAMES = ['王', '李', '张', '刘', '陈', '杨', '赵', '黄', '周', '吴', '徐', '孙', '马', '朱', '胡', '郭', '何', '林', '罗', '郑'];
 const GIVEN = ['芳', '伟', '静', '秀英', '磊', '敏', '艳', '勇', '娟', '涛', '霞', '明', '超', '秀兰', '刚', '桂英', '建华', '文', '云', '志强', '雪梅', '佳', '欣怡', '鹏', '婷'];
 const CERTS = ['足部按摩师（中级）', '保健按摩师（高级）', '中医康复理疗师', '反射疗法师', 'SPA 理疗师认证', '泰式按摩认证'];
@@ -102,6 +149,16 @@ function buildSeed() {
     orders: [],
     shifts: [],
     handovers: [],
+    materials: [],
+    recipes: [],
+    inventoryPolicy: { shortageMode: 'strict', updatedAt: null },
+    stockBalances: [],
+    stockMovements: [],
+    purchaseOrders: [],
+    stockChecks: [],
+    stockLosses: [],
+    inventoryTransfers: [],
+    inventoryAlerts: [],
   };
   const seq = (key) => { db.counters[key] = (db.counters[key] || 0) + 1; return db.counters[key]; };
   const id = (key, prefix, len = 4) => `${prefix}${String(seq(key)).padStart(len, '0')}`;
@@ -274,6 +331,8 @@ function buildSeed() {
           }
           if (!payMethod) payMethod = pick(['cash', 'card', 'mp']);
           const techCommission = Math.round(paid * level.commissionRate);
+          const materialSnapshot = recipeSnapshotFor(svc.id);
+          const materialCost = materialSnapshot.reduce((a, l) => a + l.qty * l.unitCost, 0);
           // 下单时间落在班次区间内
           const spanStart = startDt.getTime();
           const span = endDt.getTime() - spanStart - 10 * 60000;
@@ -288,6 +347,8 @@ function buildSeed() {
             duration: svc.duration,
             createdAt: `${fmtDate(ot)} ${fmtTime(ot)}:00`,
             businessDate: dateStr,
+            status: 'valid', stockDeducted: 1, stockReversed: 0,
+            materialSnapshot, materialCost,
           };
           db.orders.push(order);
           revenue += paid; commission += techCommission;
@@ -324,7 +385,194 @@ function buildSeed() {
   }
 
   db.meta.orderCount = db.orders.length;
+
+  /* ---------- 耗材与库存初始化 ---------- */
+  seedInventory(db, id, seq, { STORES, MATERIALS, RECIPE_DEFS, materialById, recipeSnapshotFor, today, fmtDate, pad, ri, pick, rand });
+
   return db;
+}
+
+/* ---------------- 库存种子：期初库存 + 45 天采购/耗用/报损/盘点/调拨事件按时间重放 ---------------- */
+function seedInventory(db, id, seq, h) {
+  const { STORES, MATERIALS, RECIPE_DEFS, materialById, recipeSnapshotFor, today, fmtDate, pad, ri, pick, rand } = h;
+  const tsAt = (d, h0 = 9, h1 = 21) => `${fmtDate(d)} ${pad(ri(h0, h1))}:${pad(ri(0, 59))}:${pad(ri(0, 59))}`;
+
+  db.materials = MATERIALS.map(m => ({ ...m, active: 1 }));
+  db.recipes = RECIPE_DEFS.map(def => ({
+    serviceId: def.serviceId,
+    lines: def.lines.map(l => ({ materialId: l.materialId, qty: l.qty })),
+    updatedAt: '2026-08-01 00:00:00',
+  }));
+  db.inventoryPolicy = { shortageMode: 'strict', updatedAt: null };
+
+  for (const s of STORES) for (const m of MATERIALS) db.stockBalances.push({ storeId: s.id, materialId: m.id, qty: 0 });
+  const bal = (storeId, materialId) => db.stockBalances.find(b => b.storeId === storeId && b.materialId === materialId);
+  let mvSeq = 0;
+  const events = [];
+  const pushEv = (ts, kind, fn, tie) => events.push({ ts, kind, fn, tie });
+
+  // 1) 期初库存：按本店 45 天实际耗材耗用量设置（保证重放过程不出现无意义的历史负库存）
+  const initDate = new Date(today.getTime() - 46 * 864e5);
+  const consumed = {}; // storeId|materialId -> qty
+  db.orders.forEach(o => (o.materialSnapshot || []).forEach(l => {
+    const k = `${o.storeId}|${l.materialId}`;
+    consumed[k] = (consumed[k] || 0) + l.qty;
+  }));
+  const inits = [];
+  for (const s of STORES) for (const m of MATERIALS) {
+    const used = consumed[`${s.id}|${m.id}`] || 0;
+    const qty = Math.round(used * (0.9 + rand() * 0.35) + (used > 0 ? ri(20, 120) : ri(0, 30)));
+    if (qty > 0) inits.push({ storeId: s.id, materialId: m.id, qty });
+  }
+  pushEv(`${fmtDate(initDate)} 08:00:00`, 'init', (apply) => {
+    inits.forEach(x => apply(x.storeId, x.materialId, x.qty, { refType: 'init', operator: db.stores.find(s => s.id === x.storeId).manager, remark: '期初建账库存' }));
+  }, 0);
+
+  // 2) 采购 / 报损 / 盘点计划（具体数量在重放时按当时账面生成）
+  const SUPPLIERS = ['康源卫材', '沪杭医疗用品', '蕲春本草', '芳疗精油直供', '白云日化批发'];
+  const checkPlans = [];
+  for (let d = 45; d >= 1; d--) {
+    const day = new Date(today.getTime() - d * 864e5);
+    for (const s of STORES) {
+      if (ri(1, 9) <= 1) {
+        const chosen = [...MATERIALS].sort(() => rand() - 0.5).slice(0, ri(2, 4));
+        const ts = tsAt(day, 9, 11);
+        pushEv(ts, 'purchase', (apply) => {
+          const po = { id: `PO__${s.id}_${d}`, storeId: s.id, supplier: pick(SUPPLIERS), operator: s.manager, lines: [], totalAmount: 0, createdAt: ts };
+          chosen.forEach(m => {
+            const pack = m.category === '一次性耗材' ? 500 : m.category === '消毒用品' ? 800 : m.unit === 'ml' ? 1000 : 100;
+            const qty = ri(2, 5) * pack;
+            const cost = Math.round(m.defaultCost * (0.92 + rand() * 0.16) * 100) / 100;
+            po.lines.push({ materialId: m.id, qty, unitCost: cost, amount: Math.round(qty * cost * 100) / 100 });
+          });
+          po.totalAmount = Math.round(po.lines.reduce((a, l) => a + l.amount, 0) * 100) / 100;
+          db.purchaseOrders.push(po);
+          po.lines.forEach(l => apply(s.id, l.materialId, l.qty, { refType: 'purchase', refId: po.id, unitCost: l.unitCost, operator: s.manager, remark: `采购入库 · ${po.supplier}` }));
+        }, 1);
+      }
+      if (ri(1, 11) === 1) {
+        const chosen = [...MATERIALS].sort(() => rand() - 0.5).slice(0, ri(1, 2));
+        const reason = pick(['过期报废', '包装破损', '操作洒漏', '受潮变质']);
+        const ts = tsAt(day, 19, 21);
+        pushEv(ts, 'loss', (apply) => {
+          const ls = { id: `LS__${s.id}_${d}`, storeId: s.id, lines: [], totalAmount: 0, reason, operator: s.manager, createdAt: ts };
+          chosen.forEach(m => {
+            const qty = Math.min(ri(2, 12), Math.max(0, Math.floor(bal(s.id, m.id).qty)));
+            if (qty <= 0) return;
+            ls.lines.push({ materialId: m.id, qty, unitCost: m.defaultCost, amount: Math.round(qty * m.defaultCost * 100) / 100 });
+          });
+          if (!ls.lines.length) return;
+          ls.totalAmount = Math.round(ls.lines.reduce((a, l) => a + l.amount, 0) * 100) / 100;
+          db.stockLosses.push(ls);
+          ls.lines.forEach(l => apply(s.id, l.materialId, -l.qty, { refType: 'loss', refId: ls.id, unitCost: l.unitCost, operator: s.manager, remark: `报损 · ${reason}` }));
+        }, 3);
+      }
+      if (d === (10 + STORES.indexOf(s) * 5) % 38 + 1) {
+        checkPlans.push({ day, s });
+      }
+    }
+    if (ri(1, 6) === 1) {
+      const from = pick(STORES), to = pick(STORES.filter(x => x.id !== from.id));
+      const m = pick(MATERIALS);
+      const ts1 = tsAt(day, 13, 15), ts2 = tsAt(day, 16, 18);
+      pushEv(ts1, 'transfer', (apply) => {
+        const qty = ri(5, 25);
+        if (bal(from.id, m.id).qty < qty + 5) return; // 当时库存不足则该笔调拨不成立
+        const trId = id('inventoryTransfer', 'IT', 6);
+        db.inventoryTransfers.push({
+          id: trId, fromStoreId: from.id, toStoreId: to.id,
+          lines: [{ materialId: m.id, qty }], reason: pick(['门店应急调剂', '新店补给', '活动备货支援']),
+          status: 'confirmed', operator: from.manager, confirmer: to.manager,
+          createdAt: ts1, confirmedAt: ts2, canceledAt: null, cancelReason: null,
+        });
+        apply(from.id, m.id, -qty, { refType: 'transfer_out', refId: trId, operator: from.manager, remark: `调出至${to.name}` });
+        pushEv(ts2, 'transfer-in', (a2) => a2(to.id, m.id, qty, { refType: 'transfer_in', refId: trId, operator: to.manager, remark: `由${from.name}调入` }), 2);
+      }, 1);
+    }
+  }
+  // 盘点事件（账面数取重放当时余额）
+  for (const p of checkPlans) {
+    const ts = tsAt(p.day, 19, 20);
+    const chosen = [...MATERIALS].sort(() => rand() - 0.5).slice(0, ri(5, 8));
+    pushEv(ts, 'check', (apply) => {
+      const ck = { id: `CK__${p.s.id}_${fmtDate(p.day)}`, storeId: p.s.id, status: 'closed', operator: p.s.manager, remark: pick(['月度盘点', '周度抽盘', '节前盘点']), lines: [], createdAt: ts, confirmedAt: ts };
+      chosen.forEach(m => {
+        const systemQty = bal(p.s.id, m.id).qty;
+        const actualQty = Math.max(0, Math.round((systemQty + ri(-6, 4)) * 100) / 100);
+        const diff = Math.round((actualQty - systemQty) * 100) / 100;
+        ck.lines.push({ materialId: m.id, systemQty, actualQty, diff });
+      });
+      const adj = ck.lines.filter(l => l.diff !== 0);
+      if (!adj.length) return;
+      db.stockChecks.push(ck);
+      adj.forEach(l => apply(p.s.id, l.materialId, l.diff, { refType: 'check', refId: ck.id, operator: p.s.manager, remark: `盘点${l.diff > 0 ? '盘盈' : '盘亏'}调整` }));
+    }, 2);
+  }
+
+  // 3) 历史订单耗材耗用（每笔账单按自己的配方快照出库）
+  db.orders.forEach(o => {
+    if (!o.materialSnapshot || !o.materialSnapshot.length) return;
+    const svc = db.services.find(v => v.id === o.serviceId);
+    pushEv(o.createdAt, 'consume', (apply) => {
+      o.materialSnapshot.forEach(l => apply(o.storeId, l.materialId, -l.qty, {
+        refType: 'consume', refId: o.id, unitCost: l.unitCost, operator: '上钟录单', remark: `${svc?.name || o.serviceId}（账单 ${o.orderNo}）耗用`,
+      }));
+    }, 4);
+  });
+
+  // 4) 按时间重放（同时间按 init < purchase/transfer < check/transfer-in < loss < consume 排序）
+  events.sort((a, b) => a.ts.localeCompare(b.ts) || a.tie - b.tie);
+  const apply = (storeId, materialId, delta, mv) => {
+    const b = bal(storeId, materialId);
+    b.qty = Math.round((b.qty + delta) * 100) / 100;
+    db.stockMovements.push({
+      id: `MV${String(++mvSeq).padStart(7, '0')}`,
+      refType: mv.refType, refId: mv.refId || null,
+      storeId, materialId, direction: delta >= 0 ? 'in' : 'out',
+      qty: Math.round(Math.abs(delta) * 100) / 100,
+      unitCost: materialById(materialId) ? materialUnitCostSeed(materialById(materialId), mv.unitCost) : 0,
+      balanceAfter: b.qty, operator: mv.operator || '', remark: mv.remark || '', createdAt: mv.createdAt,
+    });
+  };
+  function materialUnitCostSeed(m, override) { return Number(override) > 0 ? Number(override) : m.defaultCost; }
+  events.forEach(e => e.fn((storeId, materialId, delta, mv) =>
+    apply(storeId, materialId, delta, { ...mv, createdAt: mv.createdAt || e.ts })));
+
+  // 5) 今日：一笔待调入方确认的在途调拨样例（S01 → S02）
+  {
+    const m = MATERIALS[0], from = STORES[0], to = STORES[1];
+    const qty = 30;
+    const trId = id('inventoryTransfer', 'IT', 6);
+    const ts = `${fmtDate(today)} ${pad(ri(9, 12))}:${pad(ri(0, 59))}:${pad(ri(0, 59))}`;
+    db.inventoryTransfers.push({
+      id: trId, fromStoreId: from.id, toStoreId: to.id,
+      lines: [{ materialId: m.id, qty }], reason: '陆家嘴周末活动备货支援',
+      status: 'in_transit', operator: from.manager, confirmer: null,
+      createdAt: ts, confirmedAt: null, canceledAt: null, cancelReason: null,
+    });
+    apply(from.id, m.id, -qty, { refType: 'transfer_out', refId: trId, operator: from.manager, remark: `调出至${to.name}（待确认）`, createdAt: ts });
+  }
+
+  // 6) 统一编号（采购/盘点/报损占位 ID 换成正式号）
+  let poSeq = 0, ckSeq = 0, lsSeq = 0;
+  const remap = (arr, prefix, seqRef, len, key) => {
+    arr.forEach((x, i) => { const old = x.id; x.id = `${prefix}${String(i + 1).padStart(len, '0')}`; seqRef.value = i + 1; db.stockMovements.filter(mv => mv.refId === old).forEach(mv => { mv.refId = x.id; }); });
+  };
+  db.purchaseOrders.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  db.stockChecks.sort((a, b) => a.confirmedAt.localeCompare(b.confirmedAt));
+  db.stockLosses.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const poRef = { value: 0 }, ckRef = { value: 0 }, lsRef = { value: 0 };
+  remap(db.purchaseOrders, 'PO', poRef, 6);
+  remap(db.stockChecks, 'CK', ckRef, 6);
+  remap(db.stockLosses, 'LS', lsRef, 6);
+  db.counters.purchaseOrder = poRef.value;
+  db.counters.stockCheck = ckRef.value;
+  db.counters.stockLoss = lsRef.value;
+  db.counters.inventoryTransfer = db.inventoryTransfers.length;
+  db.counters.stockMovement = db.stockMovements.length;
+  db.counters.inventoryAlert = 0;
+  db.counters.material = MATERIALS.length;
+  db.counters.recipe = 0;
 }
 
 /* ---------------- 加载 / 保存 ---------------- */

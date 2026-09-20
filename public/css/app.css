@@ -238,3 +238,36 @@ table { width: 100%; border-collapse: collapse; }
   .pay-grid { grid-template-columns: repeat(2,1fr); }
   .content { padding: 16px; }
 }
+
+/* ---------- 库存核算模块 ---------- */
+.qty-neg { color: var(--red); font-weight: 600; }
+.qty-pos { color: var(--jade); font-weight: 600; }
+.tag-jade { background: var(--jade-light); color: #0f6b55; border: 1px solid #bfe0d6; }
+tr.row-void td { background: #f6f7f7 !important; color: var(--text-3); }
+tr.row-void td b, tr.row-void td .money { color: var(--text-3) !important; }
+
+/* 配方卡片 */
+.recipe-box { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: #fdfefe; }
+.recipe-box.empty-recipe { border-style: dashed; background: #fcfaf6; }
+.recipe-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.recipe-lines { display: flex; flex-wrap: wrap; gap: 7px; }
+.mat-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); background: #f6faf9; border-radius: 8px; padding: 4px 10px; font-size: 12.5px; }
+.mat-chip b { color: var(--teal-800); }
+
+/* 分析页 */
+.alert-bar { background: var(--red-light); border: 1px solid #ecc9c4; color: #8f2f26; border-radius: 10px; padding: 11px 16px; font-size: 13px; margin-bottom: 16px; }
+.loss-bar { position: relative; height: 20px; background: #f4f7f6; border-radius: 6px; overflow: hidden; min-width: 120px; }
+.loss-bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #e09189, var(--red)); border-radius: 6px; }
+.loss-bar span { position: absolute; left: 8px; top: 0; line-height: 20px; font-size: 12px; color: #fff; font-weight: 600; text-shadow: 0 1px 1px rgba(0,0,0,.25); white-space: nowrap; }
+
+/* 弹窗明细行 */
+.rl-row { display: flex; align-items: center; gap: 8px; }
+.recipe-sum { padding: 10px 14px; background: #f6faf9; border-radius: 8px; font-size: 13.5px; }
+
+/* 开单页耗材试算 */
+.mat-quote { margin-top: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
+.mq-head { font-size: 12.5px; color: var(--text-2); margin-bottom: 4px; }
+.mat-line { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; padding: 2px 0; }
+.mat-line.lack { color: var(--red); }
+.stock-warn { margin-top: 6px; padding: 7px 10px; border-radius: 8px; font-size: 12.5px; background: var(--red-light); color: #8f2f26; border: 1px solid #ecc9c4; }
+.stock-warn.neg { background: #fdf6ea; color: #8a6114; border-color: #ecd9ae; }

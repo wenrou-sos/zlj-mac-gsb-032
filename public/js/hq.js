@@ -323,19 +323,21 @@ async 'orders'(el) {
     const sid = $('#f-store', el).value, date = $('#f-date', el).value;
     const qs = new URLSearchParams(); if (sid) qs.set('storeId', sid); if (date) qs.set('date', date);
     const list = await api.get('/api/orders?' + qs);
-    const total = list.reduce((a, o) => a + o.amount, 0);
-    const comm = list.reduce((a, o) => a + o.techCommission, 0);
+    const valid = list.filter(o => !o.status || o.status === 'valid');
+    const total = valid.reduce((a, o) => a + o.amount, 0);
+    const comm = valid.reduce((a, o) => a + o.techCommission, 0);
     $('#ord-box', el).innerHTML = `
-      <table class="tbl"><thead><tr><th>账单号</th><th>时间</th><th>门店</th><th>项目</th><th>技师</th><th>会员</th><th class="num">原价</th><th class="num">折扣</th><th class="num">实付</th><th>支付</th><th class="num">提成</th></tr></thead>
+      <table class="tbl"><thead><tr><th>账单号</th><th>时间</th><th>门店</th><th>项目</th><th>技师</th><th>会员</th><th class="num">原价</th><th class="num">折扣</th><th class="num">实付</th><th>支付</th><th class="num">提成</th><th>状态</th></tr></thead>
       <tbody>${list.length ? list.map(o => `
-        <tr><td class="muted nowrap">${o.orderNo}</td><td class="nowrap muted">${o.createdAt.slice(5, 16)}</td>
+        <tr class="${o.status && o.status !== 'valid' ? 'row-void' : ''}"><td class="muted nowrap">${o.orderNo}</td><td class="nowrap muted">${o.createdAt.slice(5, 16)}</td>
         <td style="max-width:150px">${esc(o.storeName)}</td><td>${esc(o.serviceName)}</td><td>${esc(o.techName)}</td>
         <td>${o.memberName ? esc(o.memberName) : '<span class="muted">散客</span>'}</td>
         <td class="num muted">${fmtMoney(o.price)}</td><td class="num muted">${o.discountRate < 1 ? (o.discountRate * 10).toFixed(1) + '折' : '—'}</td>
-        <td class="num money">${fmtMoney(o.amount)}</td><td>${payTag(o.payMethod)}</td><td class="num">${fmtMoney(o.techCommission)}</td></tr>`).join('')
-        : `<tr><td colspan="11">${emptyBox('该条件下暂无账单')}</td></tr>`}</tbody></table>`;
+        <td class="num money">${fmtMoney(o.amount)}</td><td>${payTag(o.payMethod)}</td><td class="num">${fmtMoney(o.techCommission)}</td>
+        <td>${o.status && o.status !== 'valid' ? `<span class="tag tag-red">${esc(o.statusName)}</span>` : '<span class="tag tag-green">正常</span>'}</td></tr>`).join('')
+        : `<tr><td colspan="12">${emptyBox('该条件下暂无账单')}</td></tr>`}</tbody></table>`;
     $('#ord-sum', el).style.display = '';
-    $('#ord-sum', el).innerHTML = `<b>合计：</b>${list.length} 单 ｜ 实收 <b class="money">${fmtMoney(total)}</b> ｜ 技师提成 <b class="money red">${fmtMoney(comm)}</b>`;
+    $('#ord-sum', el).innerHTML = `<b>合计（不含已冲正 ${list.length - valid.length} 单）：</b>${valid.length} 单 ｜ 实收 <b class="money">${fmtMoney(total)}</b> ｜ 技师提成 <b class="money red">${fmtMoney(comm)}</b>`;
   };
   $('#f-btn', el).onclick = () => load().catch(e => toast(e.message, 'error'));
   load();
@@ -396,6 +398,127 @@ async 'recharges'(el) {
   };
   $('#f-store', el).onchange = render;
   render();
+},
+
+/* ============ 耗材档案与采购成本 ============ */
+async 'materials'(el) {
+  const [list, policy] = await Promise.all([api.get('/api/materials'), api.get('/api/inventory-policy')]);
+  const cats = [...new Set(list.map(m => m.category))];
+  el.innerHTML = `
+    <div class="card mb-16" style="background:linear-gradient(120deg,#f3f9f7,#fbf7ec);border-color:#e0ece6">
+      <div class="card-b" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+        <div style="font-size:13px;color:#46605b;max-width:760px">
+          💡 耗材档案与采购成本由总部统一维护。<b>调整采购成本或配方只对之后的采购与开单生效</b>，历史账单始终按开单当时的配方快照（名称/用量/单价）核算，不被追溯改写。
+        </div>
+        <div class="toolbar">
+          <span class="muted" style="font-size:12.5px">库存不足时：</span>
+          <div class="seg" id="policy-seg">
+            <button data-m="strict" class="${policy.shortageMode === 'strict' ? 'active' : ''}">禁止开单</button>
+            <button data-m="negative" class="${policy.shortageMode === 'negative' ? 'active' : ''}">允许负库存+预警</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>📦 耗材档案 <span class="sub">共 ${list.length} 种 · 全品牌库存合计</span></h3>
+        <div class="toolbar">
+          <select class="inp" id="f-cat"><option value="">全部分类</option>${cats.map(c => `<option>${esc(c)}</option>`).join('')}</select>
+          <button class="btn btn-gold" id="add-mat">＋ 新增耗材</button>
+        </div>
+      </div>
+      <div class="tbl-wrap" id="mat-tbl"></div>
+    </div>`;
+  const render = () => {
+    const cat = $('#f-cat', el).value;
+    const rows = cat ? list.filter(m => m.category === cat) : list;
+    $('#mat-tbl', el).innerHTML = `
+      <table class="tbl"><thead><tr><th>编号</th><th>耗材名称</th><th>规格</th><th>分类</th><th>单位</th><th class="num">采购成本</th><th class="num">全品牌库存</th><th>状态</th><th></th></tr></thead>
+      <tbody>${rows.map(m => `
+        <tr><td class="muted">${m.id}</td><td><b>${esc(m.name)}</b></td><td class="muted">${esc(m.spec)}</td>
+        <td><span class="tag tag-blue">${esc(m.category)}</span></td><td>${esc(m.unit)}</td>
+        <td class="num money">${fmtMoney(m.defaultCost)}<span class="muted"> /${esc(m.unit)}</span></td>
+        <td class="num ${m.totalQty <= 0 ? 'qty-neg' : ''}">${fmtNum(m.totalQty)} ${esc(m.unit)}</td>
+        <td>${m.active ? '<span class="tag tag-green">启用</span>' : '<span class="tag tag-gray">停用</span>'}</td>
+        <td class="nowrap"><button class="btn btn-sm" data-edit='${esc(JSON.stringify(m))}'>编辑/调价</button></td></tr>`).join('')}
+      </tbody></table>`;
+    el.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editMat(JSON.parse(b.dataset.edit)));
+  };
+  $('#f-cat', el).onchange = render;
+  $('#policy-seg', el).querySelectorAll('button').forEach(b => b.onclick = async () => {
+    try {
+      await api.put('/api/inventory-policy', { shortageMode: b.dataset.m });
+      toast(b.dataset.m === 'strict' ? '已切换为：库存不足禁止开单' : '已切换为：允许负库存开单并自动预警');
+      $('#policy-seg', el).querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+    } catch (e) { toast(e.message, 'error'); }
+  });
+  const form = (m = {}) => `
+    <div class="form-row"><div class="form-item"><label><span class="req">*</span>耗材名称</label><input id="f-name" value="${esc(m.name || '')}" placeholder="如：一次性泡脚袋"></div>
+    <div class="form-item"><label>分类</label><select id="f-cat2">${['一次性耗材', '药浴耗材', '精油药油', '消毒用品', '工具耗材', '调理耗材', '其他耗材'].map(c => `<option ${m.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div></div>
+    <div class="form-row"><div class="form-item"><label>规格型号</label><input id="f-spec" value="${esc(m.spec || '')}" placeholder="如：加厚 65×55cm"></div>
+    <div class="form-item"><label><span class="req">*</span>计量单位</label><input id="f-unit" value="${esc(m.unit || '')}" placeholder="个 / 条 / ml / 包"></div></div>
+    <div class="form-row"><div class="form-item"><label><span class="req">*</span>标准采购成本（元）</label><input type="number" min="0" step="0.01" id="f-cost" value="${m.defaultCost ?? ''}"></div>
+    <div class="form-item"><label>状态</label><select id="f-active"><option value="1" ${m.active !== 0 ? 'selected' : ''}>启用</option><option value="0" ${m.active === 0 ? 'selected' : ''}>停用</option></select></div></div>
+    <p class="muted" style="font-size:12.5px">成本单价将作为门店采购默认价与项目毛利核算依据；门店可按实际采购价入库，以实际价计入流水。</p>`;
+  function editMat(m) {
+    const mo = openModal({ title: m.id ? `编辑耗材 · ${m.name}` : '新增耗材档案', body: form(m), footer: `<button class="btn" data-close>取消</button><button class="btn btn-primary" id="ok">保存</button>` });
+    $('#ok', mo.el).onclick = async () => {
+      const body = { name: $('#f-name', mo.el).value.trim(), category: $('#f-cat2', mo.el).value, spec: $('#f-spec', mo.el).value.trim(), unit: $('#f-unit', mo.el).value.trim(), defaultCost: Number($('#f-cost', mo.el).value), active: Number($('#f-active', mo.el).value) };
+      if (!body.name || !body.unit || !(body.defaultCost >= 0)) return toast('请完整填写名称、单位与有效成本', 'error');
+      try {
+        if (m.id) await api.put('/api/materials/' + m.id, body); else await api.post('/api/materials', body);
+        toast('耗材档案已保存'); closeModal(); Views.hq.materials(el);
+      } catch (e) { toast(e.message, 'error'); }
+    };
+  }
+  $('#add-mat', el).onclick = () => editMat({});
+  render();
+},
+
+/* ============ 项目耗材配方（标准耗用） ============ */
+async 'recipes'(el) {
+  const { recipes } = await api.get('/api/recipes');
+  const cats = [...new Set(recipes.map(r => r.category))];
+  el.innerHTML = `
+    <div class="card mb-16" style="background:linear-gradient(120deg,#f3f9f7,#fbf7ec);border-color:#e0ece6">
+      <div class="card-b" style="font-size:13px;color:#46605b">
+        💡 配方定义每个服务项目的<b>标准耗材耗用</b>。门店开单结账时系统把当时的配方（耗材、用量、成本）固化为快照并自动扣减库存；<b>事后修改配方不会影响历史账单与已生成的毛利数据</b>。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>🧪 服务项目标准耗用配方</h3>
+        <div class="seg" id="cat-seg"><button class="active" data-c="">全部</button>${cats.map(c => `<button data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+      </div>
+      <div id="rcp-list" class="card-b" style="display:flex;flex-direction:column;gap:12px"></div>
+    </div>`;
+  const render = (cat) => {
+    const rows = cat ? recipes.filter(r => r.category === cat) : recipes;
+    $('#rcp-list', el).innerHTML = rows.map(r => `
+      <div class="recipe-box ${r.lines.length ? '' : 'empty-recipe'}">
+        <div class="recipe-head">
+          <div><b style="font-size:14.5px">${esc(r.serviceName)}</b> <span class="tag tag-blue">${esc(r.category)}</span>
+          ${r.active ? '' : '<span class="tag tag-gray">已下架</span>'}
+          ${r.lines.length ? '' : '<span class="tag tag-red">未配置配方</span>'}</div>
+          <div class="toolbar"><span class="muted" style="font-size:12.5px">单耗成本 <b class="money">${fmtMoney(r.costPerOrder)}</b>${r.updatedAt ? ` ｜ 更新于 ${r.updatedAt.slice(0, 10)}` : ''}</span>
+          <button class="btn btn-sm btn-gold" data-edit="${r.serviceId}">维护配方</button></div>
+        </div>
+        <div class="recipe-lines">${r.lines.length ? r.lines.map(l => `<span class="mat-chip">${esc(l.materialName)} <b>×${l.qty}${esc(l.unit)}</b><span class="muted">（${fmtMoney(l.unitCost)}/${esc(l.unit)}）</span></span>`).join('') : '<span class="muted" style="font-size:12.5px">该项目暂无耗材配方，开单不会扣减库存</span>'}</div>
+      </div>`).join('');
+    el.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => recipeDialog(b.dataset.edit, el));
+  };
+  $('#cat-seg', el).querySelectorAll('button').forEach(b => b.onclick = () => {
+    $('#cat-seg', el).querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+    render(b.dataset.c);
+  });
+  render('');
+},
+
+/* ============ 总部：耗材成本 / 账实差异 / 损耗率 / 项目毛利 ============ */
+async 'inventory-analysis'(el) {
+  const today = new Date().toISOString().slice(0, 10);
+  const fromDef = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
+  el.dataset.from = el.dataset.from || fromDef;
+  el.dataset.to = el.dataset.to || today;
+  await renderAnalysis(el);
 },
 };
 
@@ -632,4 +755,136 @@ async function handoverDetail(id, opts = {}) {
     footer: `<button class="btn btn-primary" data-close>关 闭</button>`,
     onClose: opts.onClose,
   });
+}
+
+/* ============ 配方编辑弹窗（总部） ============ */
+async function recipeDialog(serviceId, el) {
+  const { recipes, materials } = await api.get('/api/recipes');
+  const r = recipes.find(x => x.serviceId === serviceId);
+  const mats = materials.filter(m => m.active);
+  let lines = r.lines.map(l => ({ materialId: l.materialId, qty: l.qty }));
+  const body = () => `
+    <p class="muted mb-16" style="font-size:12.5px">维护「${esc(r.serviceName)}」的标准耗用清单。保存后<b>仅对新开账单生效</b>，历史账单保留快照不追溯。</p>
+    <div id="rl-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
+    <button class="btn btn-sm" id="rl-add" type="button">＋ 添加耗用品项</button>
+    <div class="recipe-sum" id="rl-sum"></div>`;
+  const m = openModal({ title: `维护配方 · ${r.serviceName}`, size: 'lg', body: body(),
+    footer: `<button class="btn" data-close>取消</button><button class="btn btn-primary" id="rl-ok">保存配方</button>` });
+  const draw = () => {
+    $('#rl-list', m.el).innerHTML = lines.map((l, i) => {
+      const mat = mats.find(x => x.id === l.materialId);
+      return `<div class="rl-row">
+        <select class="inp" data-k="materialId" data-i="${i}" style="flex:1">${mats.map(x => `<option value="${x.id}" ${x.id === l.materialId ? 'selected' : ''}>${esc(x.name)}（${esc(x.spec)} · ${esc(x.unit)} · ${fmtMoney(x.defaultCost)})</option>`).join('')}</select>
+        <input class="inp" type="number" min="0.01" step="0.01" data-k="qty" data-i="${i}" value="${l.qty}" style="width:120px">
+        <span class="muted" style="width:34px">${esc(mat?.unit || '')}</span>
+        <button class="btn btn-sm btn-danger" data-del="${i}" type="button">删除</button>
+      </div>`;
+    }).join('') || '<div class="muted" style="font-size:12.5px">尚未添加品项，点击下方按钮添加（可全部删除保存为空配方）</div>';
+    const cost = lines.reduce((a, l) => a + l.qty * (mats.find(x => x.id === l.materialId)?.defaultCost || 0), 0);
+    $('#rl-sum', m.el).innerHTML = lines.length ? `当前单份标准耗用成本合计：<b class="money">${fmtMoney(Math.round(cost * 100) / 100)}</b>` : '';
+    m.el.querySelectorAll('[data-k]').forEach(inp => inp.onchange = () => {
+      const i = Number(inp.dataset.i);
+      lines[i][inp.dataset.k] = inp.dataset.k === 'qty' ? Number(inp.value) : inp.value;
+      draw();
+    });
+    m.el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { lines.splice(Number(b.dataset.del), 1); draw(); });
+  };
+  $('#rl-add', m.el).onclick = () => { lines.push({ materialId: mats[0].id, qty: 1 }); draw(); };
+  draw();
+  $('#rl-ok', m.el).onclick = async () => {
+    try {
+      await api.put('/api/recipes/' + serviceId, { lines });
+      toast('配方已保存，后续开单按新配方快照扣库'); closeModal(); Views.hq.recipes(el);
+    } catch (e) { toast(e.message, 'error'); }
+  };
+}
+
+/* ============ 总部库存分析页 ============ */
+async function renderAnalysis(el) {
+  el.innerHTML = `
+    <div class="toolbar mb-16" style="justify-content:space-between">
+      <div class="toolbar">
+        <input type="date" class="inp" id="a-from" value="${el.dataset.from}">
+        <span class="muted">至</span>
+        <input type="date" class="inp" id="a-to" value="${el.dataset.to}">
+        <button class="btn btn-primary btn-sm" id="a-go">统计</button>
+      </div>
+      <span class="muted" style="font-size:12.5px">耗材成本取自每张账单的配方快照；损耗 = 报损 + 盘点盘亏</span>
+    </div>
+    <div id="a-body">${loading()}</div>`;
+  const load = async () => {
+    const d = await api.get(`/api/hq/inventory-analysis?from=${$('#a-from', el).value}&to=${$('#a-to', el).value}`);
+    el.dataset.from = d.range.from; el.dataset.to = d.range.to;
+    const pct = (x, base) => base > 0 ? (x / base * 100).toFixed(1) + '%' : '—';
+    const maxLoss = Math.max(0.0001, ...d.stores.map(s => s.lossRate || 0));
+    $('#a-body', el).innerHTML = `
+      ${d.alerts.length ? `<div class="alert-bar">⚠️ 当前有 <b>${d.alerts.length}</b> 条未处理库存预警（负库存开单），请尽快采购或调拨补货。</div>` : ''}
+      <div class="grid g-4 mb-16">
+        <div class="card kpi k-gold"><div class="k-ico">🛒</div><div class="k-label">区间采购入库金额</div><div class="k-val">${fmtMoney(d.summary.purchaseAmount)}</div><div class="k-foot">${d.range.from} ~ ${d.range.to}</div></div>
+        <div class="card kpi k-jade"><div class="k-ico">🧪</div><div class="k-label">项目耗材理论耗用</div><div class="k-val">${fmtMoney(d.summary.consumeAmount)}</div><div class="k-foot">按账单配方快照汇总</div></div>
+        <div class="card kpi k-red"><div class="k-ico">📉</div><div class="k-label">报损+盘亏金额</div><div class="k-val">${fmtMoney(d.summary.lossAmount)}</div><div class="k-foot">占耗用 ${pct(d.summary.lossAmount, d.summary.consumeAmount)}</div></div>
+        <div class="card kpi k-blue"><div class="k-ico">🏷️</div><div class="k-label">项目毛利（收入-耗材-提成）</div><div class="k-val">${fmtMoney(d.summary.grossProfit)}</div><div class="k-foot">毛利率 ${pct(d.summary.grossProfit, d.summary.revenue)}</div></div>
+      </div>
+
+      <div class="card mb-16">
+        <div class="card-h"><h3>🏬 门店损耗率排行</h3><span class="sub">损耗率 =（报损+盘亏）/ 理论耗材耗用</span></div>
+        <div class="tbl-wrap">
+          <table class="tbl"><thead><tr><th>门店</th><th style="width:220px">损耗率</th><th class="num">采购/调入额</th><th class="num">理论耗用</th><th class="num">损耗金额</th><th class="num">期末库存额</th><th class="num">未处理预警</th></tr></thead>
+          <tbody>${d.stores.map(s => `
+            <tr><td><b>${esc(s.name)}</b><br><span class="muted" style="font-size:12px">${esc(s.city)}</span></td>
+            <td><div class="loss-bar"><i style="width:${Math.round((s.lossRate || 0) / maxLoss * 100)}%"></i><span>${s.lossRate === null ? '无耗用' : (s.lossRate * 100).toFixed(2) + '%'}</span></div></td>
+            <td class="num">${fmtMoney(s.purchaseAmount)}</td><td class="num">${fmtMoney(s.consumeAmount)}</td>
+            <td class="num ${s.lossAmount > 0 ? 'money red' : ''}">${fmtMoney(s.lossAmount)}</td>
+            <td class="num">${fmtMoney(s.endAmount)}</td>
+            <td class="num">${s.openAlertCount ? `<span class="tag tag-red">${s.openAlertCount}</span>` : '0'}</td></tr>`).join('')}
+          </tbody></table>
+        </div>
+      </div>
+
+      <div class="grid g-2 mb-16">
+        <div class="card">
+          <div class="card-h"><h3>📦 耗材采购与耗用成本</h3><span class="sub">按品项汇总</span></div>
+          <div class="tbl-wrap">
+            <table class="tbl"><thead><tr><th>耗材</th><th class="num">采购量</th><th class="num">采购额</th><th class="num">耗用量</th><th class="num">耗用成本</th><th class="num">报损额</th><th class="num">期末结存</th></tr></thead>
+            <tbody>${d.materials.filter(x => x.purchaseQty > 0 || x.consumeQty > 0 || x.lossAmount > 0).map(x => `
+              <tr><td><b>${esc(x.name)}</b><br><span class="muted" style="font-size:12px">${esc(x.spec)} · ${esc(x.unit)}</span></td>
+              <td class="num">${fmtNum(x.purchaseQty)}</td><td class="num">${fmtMoney(x.purchaseAmount)}</td>
+              <td class="num">${fmtNum(x.consumeQty)}</td><td class="num money">${fmtMoney(x.consumeAmount)}</td>
+              <td class="num ${x.lossAmount > 0 ? 'red' : ''}">${fmtMoney(x.lossAmount)}</td>
+              <td class="num ${x.endQty <= 0 ? 'qty-neg' : ''}">${fmtNum(x.endQty)} ${esc(x.unit)}<br><span class="muted" style="font-size:12px">${fmtMoney(x.endAmount)}</span></td></tr>`).join('')}
+            </tbody></table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>🧾 理论库存与实际库存差异</h3><span class="sub">取各店最近一次盘点</span></div>
+          <div class="tbl-wrap">
+            <table class="tbl"><thead><tr><th>门店</th><th>耗材</th><th class="num">账面</th><th class="num">实盘</th><th class="num">差异</th><th class="num">差异金额</th><th>盘点日期</th></tr></thead>
+            <tbody>${d.variance.length ? d.variance.map(v => `
+              <tr><td style="font-size:12.5px">${esc(v.storeName)}</td><td>${esc(v.materialName)}</td>
+              <td class="num">${fmtNum(v.systemQty)}</td><td class="num">${fmtNum(v.actualQty)}</td>
+              <td class="num ${v.diff < 0 ? 'qty-neg' : 'qty-pos'}">${v.diff > 0 ? '+' : ''}${fmtNum(v.diff)} ${esc(v.unit)}</td>
+              <td class="num ${v.diff < 0 ? 'red' : ''}">${v.diff > 0 ? '+' : ''}${fmtMoney(v.diffAmount)}</td>
+              <td class="nowrap muted">${v.checkedAt.slice(0, 10)}</td></tr>`).join('')
+              : `<tr><td colspan="7">${emptyBox('区间内暂无盘点差异记录')}</td></tr>`}</tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>💆 项目毛利分析</h3><span class="sub">毛利 = 服务收入 − 耗材成本快照 − 技师提成</span></div>
+        <div class="tbl-wrap">
+          <table class="tbl"><thead><tr><th>项目</th><th>品类</th><th class="num">单数</th><th class="num">服务收入</th><th class="num">耗材成本</th><th class="num">技师提成</th><th class="num">项目毛利</th><th class="num">毛利率</th><th class="num">单均耗材</th></tr></thead>
+          <tbody>${d.services.map(x => `
+            <tr><td><b>${esc(x.name)}</b></td><td><span class="tag tag-blue">${esc(x.category)}</span></td>
+            <td class="num">${x.orders}</td><td class="num money">${fmtMoney(x.revenue)}</td>
+            <td class="num">${fmtMoney(x.materialCost)}</td><td class="num red">${fmtMoney(x.commission)}</td>
+            <td class="num money">${fmtMoney(x.grossProfit)}</td>
+            <td class="num"><b style="color:${x.margin >= 0.6 ? 'var(--jade)' : x.margin >= 0.4 ? 'var(--gold)' : 'var(--red)'}">${x.margin === null ? '—' : (x.margin * 100).toFixed(1) + '%'}</b></td>
+            <td class="num muted">${fmtMoney(x.avgCostPerOrder)}</td></tr>`).join('')}
+          </tbody></table>
+        </div>
+      </div>`;
+  };
+  $('#a-go', el).onclick = () => load().catch(e => toast(e.message, 'error'));
+  load();
 }
