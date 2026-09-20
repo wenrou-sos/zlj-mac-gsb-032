@@ -16,6 +16,12 @@ async 'dashboard'(el) {
       <div style="font-size:13px;color:var(--text-2)">今日营业日：<b>${d.range.to}</b> ｜ 本店在籍技师 <b>${activeTechs.length}</b> 人</div>
       <div class="seg" id="range-seg">${[7, 30, 45].map(n => `<button data-d="${n}" class="${n === days ? 'active' : ''}">近${n}天</button>`).join('')}</div>
     </div>
+    ${(d.kpi.stockAlerts || d.kpi.transfersIn) ? `<div class="card mb-16" style="border-color:#e6d6ad;background:linear-gradient(120deg,#fdf9ee,#f6faf9)">
+      <div class="card-b" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <span style="font-size:13px">📦 <b>库存待办：</b></span>
+        <a href="#/store/stock-transfers" class="tag tag-blue" style="text-decoration:none;padding:5px 12px">🚚 ${d.kpi.transfersIn || 0} 笔调入待确认${d.kpi.transfersOut ? ` ｜ ${d.kpi.transfersOut} 笔调出在途` : ''}</a>
+        <a href="#/store/inventory" class="tag tag-gold" style="text-decoration:none;padding:5px 12px">⚠️ ${d.kpi.stockAlerts} 条库存预警待处理</a>
+      </div></div>` : ''}
     <div class="grid g-4 mb-16">
       <div class="card kpi k-gold"><div class="k-ico">💰</div><div class="k-label">周期营收</div><div class="k-val">${fmtMoney(d.kpi.revenue)}</div><div class="k-foot">${d.range.from} ~ ${d.range.to}</div></div>
       <div class="card kpi k-jade"><div class="k-ico">📅</div><div class="k-label">今日营收</div><div class="k-val">${fmtMoney(d.kpi.todayRevenue)}</div><div class="k-foot">今日 ${d.kpi.todayOrders} 单</div></div>
@@ -102,7 +108,7 @@ async 'orders'(el) {
           <div class="form-item mb-16" id="pay-row"><label>支付方式</label>
             <select id="o-pay" class="inp" style="width:100%"><option value="cash">现金</option><option value="card">刷卡</option><option value="mp">移动支付</option></select></div>
           <div class="pay-box mb-16" style="background:#f6faf9;text-align:left">
-            <div class="p-l">金额试算</div>
+            <div class="p-l">金额与耗材试算</div>
             <div id="quote" style="margin-top:6px;font-size:13px;line-height:1.9"><span class="muted">选择项目和技师后自动试算…</span></div>
           </div>
           <button class="btn btn-gold" style="width:100%;justify-content:center;padding:11px" id="o-submit">✓ 确认开单结账</button>`}
@@ -120,17 +126,28 @@ async 'orders'(el) {
     const sum = (pm) => list.filter(o => o.payMethod === pm).reduce((a, o) => a + o.amount, 0);
     $('#live-sum', el).textContent = `${list.length} 单 · 营收 ${fmtMoney(list.reduce((a, o) => a + o.amount, 0))}`;
     $('#order-list', el).innerHTML = list.length ? `
-      <table class="tbl"><thead><tr><th>时间</th><th>项目</th><th>技师</th><th>会员</th><th class="num">实付</th><th>支付</th><th class="num">技师提成</th></tr></thead>
+      <table class="tbl"><thead><tr><th>时间</th><th>项目</th><th>技师</th><th>会员</th><th class="num">实付</th><th class="num">耗材</th><th>支付</th><th class="num">技师提成</th><th></th></tr></thead>
       <tbody>${list.map(o => `
-        <tr><td class="nowrap muted">${o.createdAt.slice(11, 16)}</td><td>${esc(o.serviceName)}</td><td>${esc(o.techName)}</td>
+        <tr style="${o.reversed ? 'opacity:.55' : ''}"><td class="nowrap muted">${o.createdAt.slice(11, 16)}</td><td>${esc(o.serviceName)}${o.reversed ? '<br><span class="tag tag-red">已冲正</span>' : ''}</td><td>${esc(o.techName)}</td>
         <td>${o.memberName ? esc(o.memberName) : '<span class="muted">散客</span>'}</td>
-        <td class="num money">${fmtMoney(o.amount)}</td><td>${payTag(o.payMethod)}</td>
-        <td class="num">${fmtMoney(o.techCommission)}</td></tr>`).join('')}
-        <tr style="background:#fafcfb;font-weight:600"><td colspan="4" class="right">本班合计</td>
-        <td class="num money">${fmtMoney(list.reduce((a, o) => a + o.amount, 0))}</td>
+        <td class="num money">${fmtMoney(o.amount)}</td>
+        <td class="num muted">${o.materialCost ? fmtMoney(o.materialCost) : '—'}</td>
+        <td>${payTag(o.payMethod)}</td>
+        <td class="num">${fmtMoney(o.techCommission)}</td>
+        <td class="nowrap">${o.reversed ? `<span class="muted" title="${esc(o.reverseReason || '')}">${o.reversedAt ? o.reversedAt.slice(5, 16) : ''}</span>` : `<button class="btn btn-sm btn-danger" data-rev="${o.id}">冲正</button>`}</td></tr>`).join('')}
+        <tr style="background:#fafcfb;font-weight:600"><td colspan="4" class="right">本班合计（有效单）</td>
+        <td class="num money">${fmtMoney(list.filter(o => !o.reversed).reduce((a, o) => a + o.amount, 0))}</td>
+        <td class="num muted">${fmtMoney(list.filter(o => !o.reversed).reduce((a, o) => a + (o.materialCost || 0), 0))}</td>
         <td style="font-size:12px"><span class="muted">现</span>${fmtMoney(sum('cash'))} <span class="muted">卡</span>${fmtMoney(sum('card'))} <span class="muted">会</span>${fmtMoney(sum('member'))} <span class="muted">移</span>${fmtMoney(sum('mp'))}</td>
-        <td class="num red">${fmtMoney(list.reduce((a, o) => a + o.techCommission, 0))}</td></tr>
+        <td class="num red">${fmtMoney(list.filter(o => !o.reversed).reduce((a, o) => a + o.techCommission, 0))}</td><td></td></tr>
       </tbody></table>` : emptyBox('本班暂无账单');
+    el.querySelectorAll('[data-rev]').forEach(b => b.onclick = async () => {
+      if (!(await confirmAsync('确定冲正该账单？<br>• 会员单将退回卡内余额<br>• 耗材库存按当时配方快照<b>回补一次</b><br>• 冲正后不能撤销、不能重复冲正', '确认冲正'))) return;
+      try {
+        const r = await api.post(`/api/orders/${b.dataset.rev}/reverse`, { reason: '门店端账单冲正' });
+        toast(`冲正成功，库存已回补 ${fmtMoney(r.restoredMaterialCost || 0)}`); reloadList();
+      } catch (e) { toast(e.message, 'error'); }
+    });
   };
 
   $('#quick-open', el)?.addEventListener('click', async () => {
@@ -143,10 +160,24 @@ async 'orders'(el) {
     if (!serviceId || !techId) return;
     try {
       const q = await api.post('/api/orders/quote', { serviceId, techId, memberId: memberId || null });
+      const recipeHtml = q.recipeItems.length ? `
+        <div style="margin-top:6px;border-top:1px dashed var(--line);padding-top:6px">
+          <div class="muted" style="font-size:12px">标准耗用配方${q.recipeVersion ? `（v${q.recipeVersion} 快照）` : ''}：</div>
+          ${q.recipeItems.map(it => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px">
+            <span>${esc(it.name)} × ${it.qty}${esc(it.unit)} ${it.enough ? '' : '<span class="tag tag-red" style="margin-left:4px">缺 ' + (it.stockQty < 0 ? it.stockQty : '存' + it.stockQty) + '</span>'}</span>
+            <span class="muted">库存 ${it.stockQty}${esc(it.unit)} ｜ ${fmtMoney(it.qty * it.unitCost)}</span></div>`).join('')}
+        </div>` : '<div class="muted" style="font-size:12px;margin-top:4px">该项目未配置耗材配方，开单不扣库存</div>';
+      const shortHtml = q.short.length ? `
+        <div style="margin-top:6px;padding:7px 9px;border-radius:8px;background:${q.shortPolicy === 'strict' ? 'var(--red-light)' : 'var(--gold-light)'};color:${q.shortPolicy === 'strict' ? 'var(--red)' : '#9a7622'};font-size:12.5px">
+          ${q.shortPolicy === 'strict' ? '⛔ 总部策略：库存不足，禁止开单。缺口：' : '⚠️ 总部策略：允许负库存开单并预警。缺口：'}
+          ${q.short.map(x => `${esc(x.name)} ${x.have}/${x.need}${esc(x.unit)}`).join('；')}
+        </div>` : '';
       $('#quote', el).innerHTML = `
         挂牌价 <b>${fmtMoney(q.price)}</b>${q.discountRate < 1 ? ` ｜ 会员折扣 <b style="color:var(--gold)">${(q.discountRate * 10).toFixed(1)}折</b>` : ''}<br>
         实付金额 <b class="money" style="font-size:16px">${fmtMoney(q.amount)}</b> ｜ 技师提成 <b style="color:var(--red)">${fmtMoney(q.commission)}</b><br>
-        <span class="muted">提成依据：${esc(q.basis)}</span>${memberId ? `<br><span class="muted">会员卡余额 ${fmtMoney(q.balance)}</span>` : ''}`;
+        耗材成本 <b>${fmtMoney(q.materialCost)}</b> ｜ 单笔毛利 <b style="color:var(--jade)">${fmtMoney(q.grossProfit)}</b>
+        ${recipeHtml}${shortHtml}
+        <span class="muted" style="font-size:12px">提成依据：${esc(q.basis)}</span>${memberId ? `<br><span class="muted">会员卡余额 ${fmtMoney(q.balance)}</span>` : ''}`;
     } catch (e) { $('#quote', el).textContent = e.message; }
   };
   if (shift) {

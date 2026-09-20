@@ -132,8 +132,12 @@ async 'services'(el) {
         <tr><td class="muted">${s.id}</td><td><b>${esc(s.name)}</b></td><td><span class="tag tag-blue">${esc(s.category)}</span></td>
         <td class="num">${s.duration}</td><td class="num money">${fmtMoney(s.price)}</td><td class="num">${s.sold30}</td>
         <td>${s.active ? '<span class="tag tag-green">上架中</span>' : '<span class="tag tag-gray">已下架</span>'}</td>
-        <td class="nowrap"><button class="btn btn-sm" data-edit='${esc(JSON.stringify(s))}'>调价/编辑</button></td></tr>`).join('')}
+        <td class="nowrap"><button class="btn btn-sm" data-rp="${s.id}">耗材配方</button> <button class="btn btn-sm" data-edit='${esc(JSON.stringify(s))}'>调价/编辑</button></td></tr>`).join('')}
       </tbody></table>`;
+    el.querySelectorAll('[data-rp]').forEach(b => b.onclick = () => {
+      const v = services.find(x => x.id === b.dataset.rp);
+      Inv.recipeEditorModal(v, () => this.services(el));
+    });
     el.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editSvc(JSON.parse(b.dataset.edit)));
   };
   render('');
@@ -323,19 +327,22 @@ async 'orders'(el) {
     const sid = $('#f-store', el).value, date = $('#f-date', el).value;
     const qs = new URLSearchParams(); if (sid) qs.set('storeId', sid); if (date) qs.set('date', date);
     const list = await api.get('/api/orders?' + qs);
-    const total = list.reduce((a, o) => a + o.amount, 0);
-    const comm = list.reduce((a, o) => a + o.techCommission, 0);
+    const total = list.filter(o => !o.reversed).reduce((a, o) => a + o.amount, 0);
+    const comm = list.filter(o => !o.reversed).reduce((a, o) => a + o.techCommission, 0);
     $('#ord-box', el).innerHTML = `
-      <table class="tbl"><thead><tr><th>账单号</th><th>时间</th><th>门店</th><th>项目</th><th>技师</th><th>会员</th><th class="num">原价</th><th class="num">折扣</th><th class="num">实付</th><th>支付</th><th class="num">提成</th></tr></thead>
+      <table class="tbl"><thead><tr><th>账单号</th><th>时间</th><th>门店</th><th>项目</th><th>技师</th><th>会员</th><th class="num">原价</th><th class="num">折扣</th><th class="num">实付</th><th class="num">耗材</th><th>支付</th><th class="num">提成</th></tr></thead>
       <tbody>${list.length ? list.map(o => `
-        <tr><td class="muted nowrap">${o.orderNo}</td><td class="nowrap muted">${o.createdAt.slice(5, 16)}</td>
+        <tr style="${o.reversed ? 'opacity:.55' : ''}"><td class="muted nowrap">${o.orderNo}${o.reversed ? '<br><span class="tag tag-red">已冲正</span>' : ''}</td><td class="nowrap muted">${o.createdAt.slice(5, 16)}</td>
         <td style="max-width:150px">${esc(o.storeName)}</td><td>${esc(o.serviceName)}</td><td>${esc(o.techName)}</td>
         <td>${o.memberName ? esc(o.memberName) : '<span class="muted">散客</span>'}</td>
         <td class="num muted">${fmtMoney(o.price)}</td><td class="num muted">${o.discountRate < 1 ? (o.discountRate * 10).toFixed(1) + '折' : '—'}</td>
-        <td class="num money">${fmtMoney(o.amount)}</td><td>${payTag(o.payMethod)}</td><td class="num">${fmtMoney(o.techCommission)}</td></tr>`).join('')
-        : `<tr><td colspan="11">${emptyBox('该条件下暂无账单')}</td></tr>`}</tbody></table>`;
+        <td class="num money">${fmtMoney(o.amount)}</td>
+        <td class="num muted">${o.materialCost ? fmtMoney(o.materialCost) : '—'}${o.recipeVersion ? `<div style="font-size:11px">v${o.recipeVersion}快照</div>` : ''}</td>
+        <td>${payTag(o.payMethod)}</td><td class="num">${fmtMoney(o.techCommission)}</td></tr>`).join('')
+        : `<tr><td colspan="12">${emptyBox('该条件下暂无账单')}</td></tr>`}</tbody></table>`;
     $('#ord-sum', el).style.display = '';
-    $('#ord-sum', el).innerHTML = `<b>合计：</b>${list.length} 单 ｜ 实收 <b class="money">${fmtMoney(total)}</b> ｜ 技师提成 <b class="money red">${fmtMoney(comm)}</b>`;
+    const eff = list.filter(o => !o.reversed);
+    $('#ord-sum', el).innerHTML = `<b>合计：</b>${eff.length} 笔有效单（${list.length - eff.length} 笔已冲正）｜ 实收 <b class="money">${fmtMoney(total)}</b> ｜ 耗材成本 <b>${fmtMoney(eff.reduce((a, o) => a + (o.materialCost || 0), 0))}</b> ｜ 技师提成 <b class="money red">${fmtMoney(comm)}</b>`;
   };
   $('#f-btn', el).onclick = () => load().catch(e => toast(e.message, 'error'));
   load();

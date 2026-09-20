@@ -12,6 +12,11 @@ const App = {
       { path: '/hq/membership', icon: '👑', name: '会员体系' },
       { path: '/hq/commission', icon: '💰', name: '技师提成标准' },
     ]},
+    { role: 'hq', group: '耗材与库存', items: [
+      { path: '/hq/materials', icon: '🧴', name: '耗材档案与配方' },
+      { path: '/hq/inventory', icon: '📦', name: '门店库存总览' },
+      { path: '/hq/inventory-analysis', icon: '📉', name: '成本与毛利分析' },
+    ]},
     { role: 'hq', group: '人力与流水', items: [
       { path: '/hq/technicians', icon: '🧑‍🔧', name: '技师档案' },
       { path: '/hq/transfers', icon: '🔁', name: '调动记录' },
@@ -25,6 +30,11 @@ const App = {
       { path: '/store/handover', icon: '📝', name: '交班结算' },
       { path: '/store/performance', icon: '💰', name: '技师业绩提成' },
     ]},
+    { role: 'store', group: '耗材库存', items: [
+      { path: '/store/inventory', icon: '📦', name: '库存与出入库' },
+      { path: '/store/stock-ledger', icon: '📒', name: '库存流水' },
+      { path: '/store/stock-transfers', icon: '🚚', name: '调拨处理' },
+    ]},
     { role: 'store', group: '人员与会员', items: [
       { path: '/store/technicians', icon: '🧑‍🔧', name: '技师管理' },
       { path: '/store/members', icon: '👥', name: '会员管理' },
@@ -36,9 +46,11 @@ const App = {
     '/hq/dashboard': '品牌经营看板', '/hq/stores': '门店管理', '/hq/services': '项目与统一定价',
     '/hq/membership': '会员体系', '/hq/commission': '技师提成标准', '/hq/technicians': '技师档案',
     '/hq/transfers': '跨店调动记录', '/hq/orders': '全部门店账单', '/hq/handovers': '交班记录', '/hq/recharges': '会员充值流水',
+    '/hq/materials': '耗材档案与标准配方', '/hq/inventory': '门店库存总览', '/hq/inventory-analysis': '耗材成本与毛利分析',
     '/store/dashboard': '门店看板', '/store/orders': '上钟开单', '/store/handover': '交班结算',
     '/store/performance': '技师业绩提成', '/store/technicians': '技师管理', '/store/members': '会员管理',
-    '/store/handovers': '历史交班记录',
+    '/store/handovers': '历史交班记录', '/store/inventory': '库存与出入库', '/store/stock-ledger': '库存流水',
+    '/store/stock-transfers': '调拨处理',
   },
 
   async start() {
@@ -186,9 +198,10 @@ const App = {
     $('#page-crumb').textContent = `${this.session.role === 'hq' ? '总部' : '门店'} · ${group?.group || ''} / ${item?.name || ''}`;
     closeModal();
     this.viewEl.innerHTML = loading();
-    const handler = (Views[this.session.role] || {})[path.slice(1).split('/').slice(1).join('/')]
-      || Object.entries(Views[this.session.role] || {}).find(([k]) => path.endsWith(k))?.[1];
-    Promise.resolve(handler ? handler(this.viewEl) : (this.viewEl.innerHTML = emptyBox())).catch(e => {
+    const viewRoot = Views[this.session.role] || {};
+    const handler = viewRoot[path.slice(1).split('/').slice(1).join('/')]
+      || Object.entries(viewRoot).find(([k]) => path.endsWith(k))?.[1];
+    Promise.resolve(handler ? handler.call(viewRoot, this.viewEl) : (this.viewEl.innerHTML = emptyBox())).catch(e => {
       console.error(e);
       this.viewEl.innerHTML = `<div class="empty"><span class="e-ico">⚠️</span>加载失败：${esc(e.message)}</div>`;
     });

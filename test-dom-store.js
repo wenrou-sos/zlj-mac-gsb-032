@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 (async () => {
-  const files = ['js/api.js', 'js/ui.js', 'js/charts.js', 'js/signature.js', 'js/hq.js', 'js/store.js', 'js/app.js'];
+  const files = ['js/api.js', 'js/ui.js', 'js/charts.js', 'js/signature.js', 'js/hq.js', 'js/store.js', 'js/inventory.js', 'js/store-inventory.js', 'js/app.js'];
   const inline = files.map(f => `<script>${fs.readFileSync(path.join('public', f), 'utf8')}</script>`).join('');
   const dom = new JSDOM(`<!DOCTYPE html><html><body><div id="app"></div>${inline}</body></html>`, {
     url: 'http://localhost:3000/#/login', pretendToBeVisual: true, runScripts: 'dangerously',
@@ -55,14 +55,14 @@ const path = require('path');
   await sleep(300);
   console.log('✅ 上钟开单成功，账单已入本班列表');
 
-  // 会员单：选第一位会员
+  // 会员单：选第一位会员（开单提交后页面会重渲染，需重新选择项目/技师/会员）
   if ($('#o-member').options.length > 1) {
+    $('#o-svc').selectedIndex = 1; $('#o-svc').dispatchEvent(new window.Event('change'));
+    $('#o-tech').selectedIndex = 1; $('#o-tech').dispatchEvent(new window.Event('change'));
     $('#o-member').selectedIndex = 1; $('#o-member').dispatchEvent(new window.Event('change'));
     await sleep(600);
     const quoteText = $('#quote').textContent;
     if (!quoteText.includes('会员折扣')) throw new Error('会员折扣未体现');
-    $('#o-svc').selectedIndex = 1; $('#o-svc').dispatchEvent(new window.Event('change'));
-    await sleep(300);
     $('#o-submit').click();
     await sleep(800);
     console.log('✅ 会员卡扣款开单（自动折扣）');
