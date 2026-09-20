@@ -1,0 +1,11 @@
+{
+  "name": "yuzutang-platform",
+  "version": "1.0.0",
+  "description": "悦足堂连锁足浴 · 总部门店管理平台",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "seed": "node server/db.js --reseed"
+  },
+  "license": "MIT"
+}
